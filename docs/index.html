@@ -159,13 +159,14 @@
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
-      width: 12px;
-      height: 12px;
+      width: var(--dot-size, 14px);
+      height: var(--dot-size, 14px);
       border-radius: 50%;
       background: var(--seg-color);
       filter: drop-shadow(0 0 10px rgba(255, 26, 26, 0.35));
       opacity: .95;
     }
+
 
     .dot.top {
       top: calc(35% - 6px);
@@ -241,10 +242,7 @@
         width: 16px;
       }
 
-      .dot {
-        width: 10px;
-        height: 10px;
-      }
+
 
       .display {
         gap: 10px;
@@ -522,6 +520,7 @@
       document.documentElement.style.setProperty("--seg-gap", `${segGp}px`);
       document.documentElement.style.setProperty("--colon-w", `${W * colonRatio}px`);
       document.documentElement.style.setProperty("--ui-gap", `${W * gapRatio}px`);
+      document.documentElement.style.setProperty("--dot-size", `${Math.max(10, W * 0.18)}px`);
     }
 
 
