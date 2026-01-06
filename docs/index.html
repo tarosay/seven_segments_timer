@@ -1,189 +1,259 @@
 <!doctype html>
 <html lang="ja">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>7セグ カウントダウンタイマー</title>
   <style>
-    :root{
-      /* 7セグのサイズ調整（ここだけ触れば全体が追従） */
-      --digit-w: 84px;
-      --digit-h: 148px;
-      --seg-t: 14px;      /* セグメント太さ */
-      --seg-gap: 10px;    /* 端の余白 */
+    :root {
       --seg-color: #ff1a1a;
       --bg-color: #050505;
+
+      /* JSがセットする：--digit-w / --digit-h / --seg-t / --seg-gap */
     }
 
-    body{
-      margin:0;
+
+    body {
+      margin: 0;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
-      background:#ffffff;
-      color:#111;
-      display:flex;
-      min-height:100vh;
-      align-items:center;
-      justify-content:center;
+      background: #ffffff;
+      color: #111;
+      display: flex;
+      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
     }
 
-    .wrap{
-      width:min(1100px, 92vw);
-      display:grid;
-      gap:18px;
+    .wrap {
+      width: 100vw;
+      /* ビューポート全幅 */
+      max-width: none;
+      /* 1100px制限を撤廃 */
+      padding: 16px;
+      /* 端にベタ付きを避けるなら */
+      box-sizing: border-box;
+      display: grid;
+      gap: 18px;
     }
 
-    .panel{
+
+    .panel {
       background: #fff;
-      border:1px solid #ddd;
-      border-radius:14px;
-      padding:16px;
-      box-shadow: 0 6px 22px rgba(0,0,0,.06);
+      border: 1px solid #ddd;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 6px 22px rgba(0, 0, 0, .06);
+      width: 100%;
+      box-sizing: border-box;
     }
 
-    .display-shell{
+    .display-shell {
       background: var(--bg-color);
       border-radius: 10px;
       padding: 18px 18px;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      overflow:auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: auto;
+      width: 100%;
     }
 
-    .display{
-      display:flex;
-      align-items:center;
-      gap: 14px;
-      user-select:none;
+    .display {
+      display: flex;
+      align-items: center;
+      gap: var(--ui-gap, 14px);
+      user-select: none;
     }
 
-    .digit{
+    .digit {
       position: relative;
       width: var(--digit-w);
       height: var(--digit-h);
       flex: 0 0 auto;
     }
 
-    .seg{
-      position:absolute;
-      background: rgba(255,26,26,0.12); /* OFF時の薄い赤 */
-      filter: drop-shadow(0 0 0 rgba(0,0,0,0));
+    .seg {
+      position: absolute;
+      background: rgba(255, 26, 26, 0.12);
+      /* OFF時の薄い赤 */
+      filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
       border-radius: 6px;
       clip-path: polygon(10% 0, 90% 0, 100% 50%, 90% 100%, 10% 100%, 0 50%);
       transition: background .08s linear, filter .08s linear;
     }
-    .seg.on{
+
+    .seg.on {
       background: var(--seg-color);
-      filter: drop-shadow(0 0 10px rgba(255,26,26,0.35));
+      filter: drop-shadow(0 0 10px rgba(255, 26, 26, 0.35));
     }
 
     /* 水平セグメント */
-    .seg.a, .seg.g, .seg.d{
+    .seg.a,
+    .seg.g,
+    .seg.d {
       height: var(--seg-t);
       left: var(--seg-gap);
       right: var(--seg-gap);
     }
-    .seg.a{ top: 0; }
-    .seg.g{ top: calc(50% - (var(--seg-t) / 2)); }
-    .seg.d{ bottom: 0; }
+
+    .seg.a {
+      top: 0;
+    }
+
+    .seg.g {
+      top: calc(50% - (var(--seg-t) / 2));
+    }
+
+    .seg.d {
+      bottom: 0;
+    }
 
     /* 垂直セグメント */
-    .seg.f, .seg.b, .seg.e, .seg.c{
+    .seg.f,
+    .seg.b,
+    .seg.e,
+    .seg.c {
       width: var(--seg-t);
       top: var(--seg-gap);
       bottom: var(--seg-gap);
     }
-    .seg.f, .seg.b{
+
+    .seg.f,
+    .seg.b {
       height: calc(50% - var(--seg-gap) - (var(--seg-t) / 2));
       bottom: auto;
     }
-    .seg.e, .seg.c{
+
+    .seg.e,
+    .seg.c {
       height: calc(50% - var(--seg-gap) - (var(--seg-t) / 2));
       top: auto;
     }
 
-    .seg.f{ left: 0; }
-    .seg.b{ right: 0; }
-    .seg.e{ left: 0; }
-    .seg.c{ right: 0; }
+    .seg.f {
+      left: 0;
+    }
+
+    .seg.b {
+      right: 0;
+    }
+
+    .seg.e {
+      left: 0;
+    }
+
+    .seg.c {
+      right: 0;
+    }
 
     /* コロン */
-    .colon{
-      width: 20px;
+    .colon {
+      width: var(--colon-w, 20px);
       height: var(--digit-h);
       position: relative;
       flex: 0 0 auto;
     }
-    .dot{
-      position:absolute;
+
+    .dot {
+      position: absolute;
       left: 50%;
       transform: translateX(-50%);
       width: 12px;
       height: 12px;
       border-radius: 50%;
       background: var(--seg-color);
-      filter: drop-shadow(0 0 10px rgba(255,26,26,0.35));
+      filter: drop-shadow(0 0 10px rgba(255, 26, 26, 0.35));
       opacity: .95;
     }
-    .dot.top{ top: calc(35% - 6px); }
-    .dot.bot{ top: calc(65% - 6px); }
 
-    .controls{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      align-items:center;
-    }
-    label{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
-    }
-    input[type="text"]{
-      font-size:16px;
-      padding:10px 12px;
-      border:1px solid #ccc;
-      border-radius:10px;
-      width:min(240px, 70vw);
-    }
-    button{
-      font-size:16px;
-      padding:10px 14px;
-      border:1px solid #bbb;
-      background:#fff;
-      border-radius:10px;
-      cursor:pointer;
-    }
-    button:active{ transform: translateY(1px); }
-    button.primary{
-      border-color:#666;
-      font-weight:600;
-    }
-    .hint{
-      color:#444;
-      font-size:13px;
-      margin-top:10px;
-      line-height:1.5;
-    }
-    .status{
-      margin-left:auto;
-      font-size:14px;
-      color:#333;
-      white-space:nowrap;
+    .dot.top {
+      top: calc(35% - 6px);
     }
 
-    @media (max-width:520px){
-      :root{
+    .dot.bot {
+      top: calc(65% - 6px);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    label {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    input[type="text"] {
+      font-size: 16px;
+      padding: 10px 12px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      width: min(240px, 70vw);
+    }
+
+    button {
+      font-size: 16px;
+      padding: 10px 14px;
+      border: 1px solid #bbb;
+      background: #fff;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button.primary {
+      border-color: #666;
+      font-weight: 600;
+    }
+
+    .hint {
+      color: #444;
+      font-size: 13px;
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+
+    .status {
+      margin-left: auto;
+      font-size: 14px;
+      color: #333;
+      white-space: nowrap;
+    }
+
+    @media (max-width:520px) {
+      :root {
         --digit-w: 64px;
         --digit-h: 116px;
         --seg-t: 12px;
         --seg-gap: 8px;
       }
-      .colon{ width: 16px; }
-      .dot{ width:10px; height:10px; }
-      .display{ gap: 10px; }
-      .status{ width:100%; margin-left:0; }
+
+      .colon {
+        width: 16px;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+      }
+
+      .display {
+        gap: 10px;
+      }
+
+      .status {
+        width: 100%;
+        margin-left: 0;
+      }
     }
   </style>
 </head>
@@ -208,7 +278,7 @@
       </div>
 
       <div class="hint">
-        例: <code>0:1:0</code> → 表示は <code>00:01:00</code><br/>
+        例: <code>0:1:0</code> → 表示は <code>00:01:00</code><br />
         入力変更で即表示が更新されます（動作中は一時停止してから反映）。
       </div>
     </div>
@@ -218,37 +288,37 @@
     // 7セグの点灯マップ（a,b,c,d,e,f,g）
     // index: 0=a,1=b,2=c,3=d,4=e,5=f,6=g
     const DIGIT_MAP = {
-      "0":[1,1,1,1,1,1,0],
-      "1":[0,1,1,0,0,0,0],
-      "2":[1,1,0,1,1,0,1],
-      "3":[1,1,1,1,0,0,1],
-      "4":[0,1,1,0,0,1,1],
-      "5":[1,0,1,1,0,1,1],
-      "6":[1,0,1,1,1,1,1],
-      "7":[1,1,1,0,0,0,0],
-      "8":[1,1,1,1,1,1,1],
-      "9":[1,1,1,1,0,1,1],
-      " ":[0,0,0,0,0,0,0]
+      "0": [1, 1, 1, 1, 1, 1, 0],
+      "1": [0, 1, 1, 0, 0, 0, 0],
+      "2": [1, 1, 0, 1, 1, 0, 1],
+      "3": [1, 1, 1, 1, 0, 0, 1],
+      "4": [0, 1, 1, 0, 0, 1, 1],
+      "5": [1, 0, 1, 1, 0, 1, 1],
+      "6": [1, 0, 1, 1, 1, 1, 1],
+      "7": [1, 1, 1, 0, 0, 0, 0],
+      "8": [1, 1, 1, 1, 1, 1, 1],
+      "9": [1, 1, 1, 1, 0, 1, 1],
+      " ": [0, 0, 0, 0, 0, 0, 0]
     };
 
-    const SEG_CLASSES = ["a","b","c","d","e","f","g"];
+    const SEG_CLASSES = ["a", "b", "c", "d", "e", "f", "g"];
 
     const displayEl = document.getElementById("display");
-    const inputEl   = document.getElementById("timeInput");
-    const startBtn  = document.getElementById("startBtn");
-    const resetBtn  = document.getElementById("resetBtn");
-    const statusEl  = document.getElementById("status");
+    const inputEl = document.getElementById("timeInput");
+    const startBtn = document.getElementById("startBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const statusEl = document.getElementById("status");
 
     // 表示要素（HH:MM:SS → 6桁 + コロン2つ）
     const digitEls = []; // 6 digits
-    function buildDisplay(){
+    function buildDisplay() {
       displayEl.innerHTML = "";
 
-      function makeDigit(){
+      function makeDigit() {
         const d = document.createElement("div");
         d.className = "digit";
         const segs = [];
-        for (const c of SEG_CLASSES){
+        for (const c of SEG_CLASSES) {
           const s = document.createElement("div");
           s.className = `seg ${c}`;
           d.appendChild(s);
@@ -258,7 +328,7 @@
         return d;
       }
 
-      function makeColon(){
+      function makeColon() {
         const c = document.createElement("div");
         c.className = "colon";
         const t = document.createElement("div");
@@ -288,38 +358,38 @@
       displayEl.appendChild(digitEls[5]);
     }
 
-    function setDigit(digitEl, ch){
+    function setDigit(digitEl, ch) {
       const map = DIGIT_MAP[ch] ?? DIGIT_MAP[" "];
-      for (let i=0; i<7; i++){
+      for (let i = 0; i < 7; i++) {
         digitEl._segs[i].classList.toggle("on", !!map[i]);
       }
     }
 
-    function pad2(n){ return String(n).padStart(2,"0"); }
+    function pad2(n) { return String(n).padStart(2, "0"); }
 
-    function formatHMS(totalMs){
-      const totalSec = Math.max(0, Math.ceil(totalMs/1000)); // 表示は切り上げで「残り」を分かりやすく
+    function formatHMS(totalMs) {
+      const totalSec = Math.max(0, Math.ceil(totalMs / 1000)); // 表示は切り上げで「残り」を分かりやすく
       const h = Math.floor(totalSec / 3600);
       const m = Math.floor((totalSec % 3600) / 60);
       const s = totalSec % 60;
       return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
     }
 
-    function render(textHMS){
+    function render(textHMS) {
       // textHMS: "HH:MM:SS"
       const parts = textHMS.split(":");
       const hh = parts[0] ?? "00";
       const mm = parts[1] ?? "00";
       const ss = parts[2] ?? "00";
-      const six = (hh + mm + ss).padEnd(6, "0").slice(0,6);
+      const six = (hh + mm + ss).padEnd(6, "0").slice(0, 6);
 
-      for (let i=0; i<6; i++){
+      for (let i = 0; i < 6; i++) {
         setDigit(digitEls[i], six[i]);
       }
       displayEl.setAttribute("aria-label", textHMS);
     }
 
-    function parseInputToMs(str){
+    function parseInputToMs(str) {
       // 期待: h:m:s（各フィールドは整数、空欄は0扱い）
       // 例: "0:1:0" -> 60秒
       const raw = String(str ?? "").trim();
@@ -328,11 +398,11 @@
       const items = raw.split(":").map(s => s.trim());
       if (items.length < 1 || items.length > 3) return 0;
 
-      let h=0,m=0,s=0;
-      if (items.length === 1){
+      let h = 0, m = 0, s = 0;
+      if (items.length === 1) {
         // "ss" のみも許容（不要なら消してOK）
         s = Number(items[0]);
-      } else if (items.length === 2){
+      } else if (items.length === 2) {
         // "m:s"
         m = Number(items[0]);
         s = Number(items[1]);
@@ -342,10 +412,10 @@
         s = Number(items[2]);
       }
 
-      if (![h,m,s].every(v => Number.isFinite(v) && v >= 0)) return 0;
+      if (![h, m, s].every(v => Number.isFinite(v) && v >= 0)) return 0;
 
       h = Math.floor(h); m = Math.floor(m); s = Math.floor(s);
-      return ((h*3600 + m*60 + s) * 1000);
+      return ((h * 3600 + m * 60 + s) * 1000);
     }
 
     // タイマー状態
@@ -354,9 +424,9 @@
     let endAt = 0;
     let tickId = null;
 
-    function stop(){
+    function stop() {
       running = false;
-      if (tickId !== null){
+      if (tickId !== null) {
         clearInterval(tickId);
         tickId = null;
       }
@@ -364,11 +434,11 @@
       statusEl.textContent = "停止中";
     }
 
-    function start(){
-      if (remainingMs <= 0){
+    function start() {
+      if (remainingMs <= 0) {
         remainingMs = parseInputToMs(inputEl.value);
       }
-      if (remainingMs <= 0){
+      if (remainingMs <= 0) {
         render("00:00:00");
         return;
       }
@@ -383,7 +453,7 @@
         const now = performance.now();
         remainingMs = endAt - now;
 
-        if (remainingMs <= 0){
+        if (remainingMs <= 0) {
           remainingMs = 0;
           render("00:00:00");
           stop();
@@ -394,7 +464,7 @@
       }, 100);
     }
 
-    function applyInputToDisplay(){
+    function applyInputToDisplay() {
       remainingMs = parseInputToMs(inputEl.value);
       render(formatHMS(remainingMs));
       statusEl.textContent = "停止中";
@@ -402,7 +472,9 @@
 
     // 初期化
     buildDisplay();
+    fitToWidth();
     applyInputToDisplay();
+
 
     // 入力変更で即表示（動作中は誤動作防止で停止）
     inputEl.addEventListener("input", () => {
@@ -411,7 +483,7 @@
     });
 
     startBtn.addEventListener("click", () => {
-      if (!running){
+      if (!running) {
         // 入力値から開始したいので、ここで再読み込み
         remainingMs = parseInputToMs(inputEl.value);
         render(formatHMS(remainingMs)); // スタート前に整形表示（例 0:1:0 → 00:01:00）
@@ -427,6 +499,40 @@
       stop();
       applyInputToDisplay();
     });
+
+    function fitToWidth() {
+      const shell = document.querySelector(".display-shell");
+      const avail = shell.getBoundingClientRect().width - 36; // padding分の見込み
+
+      if (avail <= 0) return;
+
+      // ここから下は既存の計算ロジック（Wを求めてCSS変数にsetPropertyする部分）
+      const colonRatio = 0.24;
+      const gapRatio = 0.14;
+
+      const W = avail / (6 + 2 * colonRatio + 7 * gapRatio);
+      const H = W * (148 / 84);
+
+      const segT = Math.max(8, W * 0.17);
+      const segGp = Math.max(6, W * 0.12);
+
+      document.documentElement.style.setProperty("--digit-w", `${W}px`);
+      document.documentElement.style.setProperty("--digit-h", `${H}px`);
+      document.documentElement.style.setProperty("--seg-t", `${segT}px`);
+      document.documentElement.style.setProperty("--seg-gap", `${segGp}px`);
+      document.documentElement.style.setProperty("--colon-w", `${W * colonRatio}px`);
+      document.documentElement.style.setProperty("--ui-gap", `${W * gapRatio}px`);
+    }
+
+
+
+    // 起動時とリサイズ時にフィット
+    window.addEventListener("resize", () => {
+      fitToWidth();
+      render(formatHMS(remainingMs));
+    });
+
   </script>
 </body>
+
 </html>
