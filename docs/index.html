@@ -8,6 +8,8 @@
   <style>
     :root {
       --seg-color: #ff1a1a;
+      --seg-glow: rgba(255, 26, 26, 0.35);
+      --seg-off: rgba(255, 26, 26, 0.12);
       --bg-color: #050505;
       /* JSがセットする：--digit-w / --digit-h / --seg-t / --seg-gap / --colon-w / --ui-gap / --dot-size */
     }
@@ -55,11 +57,32 @@
     }
 
     .display-shell.completed {
+      /* 完了時（元の終了色）：セグメント色=シアン / 背景=紫 */
       --seg-color: #00e5ff;
+      --seg-glow: rgba(0, 229, 255, 0.35);
+      --seg-off: rgba(0, 229, 255, 0.12);
       --bg-color: #1a002e;
     }
 
-    .display {
+    .display-shell.completed.alt {
+      /* 点滅用（元のカウントダウン色）：セグメント色=赤 */
+      --seg-color: #ff1a1a;
+      --seg-glow: rgba(255, 26, 26, 0.35);
+      --seg-off: rgba(255, 26, 26, 0.12);
+    }
+
+/* 完了時に 00:00:00 を点滅させる */
+    @keyframes blinkZero {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+    .blink {
+      animation: blinkZero 0.8s steps(1, end) infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .blink { animation: none; }
+    }
+.display {
       display: flex;
       align-items: center;
       gap: var(--ui-gap, 14px);
@@ -76,7 +99,7 @@
     /* セグ（形状は水平/垂直で分離） */
     .seg {
       position: absolute;
-      background: rgba(255, 26, 26, 0.12);
+      background: var(--seg-off);
       filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
       border-radius: 6px;
       transition: background .08s linear, filter .08s linear;
@@ -89,7 +112,7 @@
 
     .seg.on {
       background: var(--seg-color);
-      filter: drop-shadow(0 0 10px rgba(255, 26, 26, 0.35));
+      filter: drop-shadow(0 0 10px var(--seg-glow));
     }
 
     /* 水平セグ：配置 */
@@ -193,7 +216,7 @@
       height: var(--dot-size, 14px);
       border-radius: 50%;
       background: var(--seg-color);
-      filter: drop-shadow(0 0 10px rgba(255, 26, 26, 0.35));
+      filter: drop-shadow(0 0 10px var(--seg-glow));
       opacity: .95;
     }
 
@@ -335,6 +358,48 @@
     const resetBtn = document.getElementById("resetBtn");
     const statusEl = document.getElementById("status");
 
+    // 終了音（index.htmlと同じフォルダに end_sound.mp3 を置く）
+    // ※ブラウザの自動再生制限対策：ユーザー操作（スタート押下）時に一度だけ“解錠”する
+    const endSound = new Audio("end_sound.mp3");
+    endSound.preload = "auto";
+    let audioPrimed = false;
+
+    function primeAudioOnce() {
+      if (audioPrimed) return;
+      audioPrimed = true;
+
+      // ユーザー操作直後なら再生が許可されやすい。短く再生→停止で“解錠”を試みる。
+      endSound.volume = 1.0;
+      endSound.loop = false;
+      const p = endSound.play();
+      if (p && typeof p.then === "function") {
+        p.then(() => {
+          endSound.pause();
+          endSound.currentTime = 0;
+        }).catch(() => {
+          // ミュート状態/設定/ブラウザ都合で失敗してもタイマー自体は動かす
+        });
+      }
+    }
+
+    function startEndAlert() {
+      try {
+        endSound.pause();
+        endSound.currentTime = 0;
+        endSound.loop = true; // 点滅中はループ再生
+      } catch { /* ignore */ }
+      const p = endSound.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    }
+
+    function stopEndAlert() {
+      try {
+        endSound.pause();
+        endSound.currentTime = 0;
+        endSound.loop = false;
+      } catch { /* ignore */ }
+    }
+
     // 表示要素（HH:MM:SS → 6桁 + コロン2つ）
     const digitEls = []; // 6 digits
     function buildDisplay() {
@@ -393,8 +458,37 @@
 
     function pad2(n) { return String(n).padStart(2, "0"); }
 
+    let colorBlinkId = null;
+    let colorBlinkState = false;
+
+    function startColorBlink() {
+      if (colorBlinkId !== null) return;
+      colorBlinkState = false;
+      displayShellEl.classList.remove("alt");
+      // 0.5秒ごとに 赤⇄青 を切り替え
+      colorBlinkId = setInterval(() => {
+        colorBlinkState = !colorBlinkState;
+        displayShellEl.classList.toggle("alt", colorBlinkState);
+      }, 500);
+    }
+
+    function stopColorBlink() {
+      if (colorBlinkId !== null) {
+        clearInterval(colorBlinkId);
+        colorBlinkId = null;
+      }
+      displayShellEl.classList.remove("alt");
+    }
+
     function setCompleted(isCompleted) {
       displayShellEl.classList.toggle("completed", isCompleted);
+      if (isCompleted) {
+        startColorBlink();
+        startEndAlert();
+      } else {
+        stopColorBlink();
+        stopEndAlert();
+      }
     }
 
     function formatHMS(totalMs) {
@@ -517,6 +611,9 @@
     });
 
     startBtn.addEventListener("click", () => {
+      // ブラウザの自動再生制限対策：ユーザー操作の瞬間に音を“解錠”
+      primeAudioOnce();
+
       if (!running) {
         // 入力値から開始したいので、ここで再読み込み
         remainingMs = parseInputToMs(inputEl.value);
