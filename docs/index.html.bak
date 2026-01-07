@@ -462,11 +462,9 @@
       }
       startBtn.textContent = "スタート";
       statusEl.textContent = "停止中";
-      setCompleted(false);
     }
 
     function start() {
-      setCompleted(false);
       if (remainingMs <= 0) {
         remainingMs = parseInputToMs(inputEl.value);
       }
@@ -490,7 +488,6 @@
           render("00:00:00");
           stop();
           statusEl.textContent = "完了";
-          setCompleted(true);
           return;
         }
         render(formatHMS(remainingMs));
@@ -500,7 +497,6 @@
     function applyInputToDisplay() {
       remainingMs = parseInputToMs(inputEl.value);
       render(formatHMS(remainingMs));
-      setCompleted(false);
       statusEl.textContent = "停止中";
     }
 
@@ -548,7 +544,7 @@
       const H = W * (148 / 84);
 
       const segT = Math.max(8, W * 0.17);
-      const segGp = Math.max(6, W * 0.11);
+      const segGp = Math.max(6, W * 0.105);
 
       document.documentElement.style.setProperty("--digit-w", `${W}px`);
       document.documentElement.style.setProperty("--digit-h", `${H}px`);
