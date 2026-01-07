@@ -9,10 +9,8 @@
     :root {
       --seg-color: #ff1a1a;
       --bg-color: #050505;
-
-      /* JSがセットする：--digit-w / --digit-h / --seg-t / --seg-gap */
+      /* JSがセットする：--digit-w / --digit-h / --seg-t / --seg-gap / --colon-w / --ui-gap / --dot-size */
     }
-
 
     body {
       margin: 0;
@@ -27,16 +25,12 @@
 
     .wrap {
       width: 100vw;
-      /* ビューポート全幅 */
       max-width: none;
-      /* 1100px制限を撤廃 */
       padding: 16px;
-      /* 端にベタ付きを避けるなら */
       box-sizing: border-box;
       display: grid;
       gap: 18px;
     }
-
 
     .panel {
       background: #fff;
@@ -55,8 +49,9 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      overflow: auto;
+      overflow: hidden;
       width: 100%;
+      box-sizing: border-box;
     }
 
     .display {
@@ -73,14 +68,18 @@
       flex: 0 0 auto;
     }
 
+    /* セグ（形状は水平/垂直で分離） */
     .seg {
       position: absolute;
       background: rgba(255, 26, 26, 0.12);
-      /* OFF時の薄い赤 */
       filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
       border-radius: 6px;
-      clip-path: polygon(10% 0, 90% 0, 100% 50%, 90% 100%, 10% 100%, 0 50%);
       transition: background .08s linear, filter .08s linear;
+
+      /* 先端角90°の切り欠き */
+      --cap: calc(var(--seg-t) / 2);
+
+      --join: max(0px, calc(var(--seg-t) - var(--seg-gap)));
     }
 
     .seg.on {
@@ -88,7 +87,7 @@
       filter: drop-shadow(0 0 10px rgba(255, 26, 26, 0.35));
     }
 
-    /* 水平セグメント */
+    /* 水平セグ：配置 */
     .seg.a,
     .seg.g,
     .seg.d {
@@ -109,7 +108,7 @@
       bottom: 0;
     }
 
-    /* 垂直セグメント */
+    /* 垂直セグ：配置 */
     .seg.f,
     .seg.b,
     .seg.e,
@@ -119,15 +118,16 @@
       bottom: var(--seg-gap);
     }
 
+    /* ここで + var(--join) を足すことで、中央ギャップも変わる */
     .seg.f,
     .seg.b {
-      height: calc(50% - var(--seg-gap) - (var(--seg-t) / 2));
+      height: calc(50% - var(--seg-gap) - (var(--seg-t) / 2) + var(--join));
       bottom: auto;
     }
 
     .seg.e,
     .seg.c {
-      height: calc(50% - var(--seg-gap) - (var(--seg-t) / 2));
+      height: calc(50% - var(--seg-gap) - (var(--seg-t) / 2) + var(--join));
       top: auto;
     }
 
@@ -145,6 +145,31 @@
 
     .seg.c {
       right: 0;
+    }
+
+    /* 形状：水平 */
+    .seg.a,
+    .seg.g,
+    .seg.d {
+      clip-path: polygon(0% 50%,
+          var(--cap) 0%,
+          calc(100% - var(--cap)) 0%,
+          100% 50%,
+          calc(100% - var(--cap)) 100%,
+          var(--cap) 100%);
+    }
+
+    /* 形状：垂直（水平を90°回転） */
+    .seg.b,
+    .seg.c,
+    .seg.e,
+    .seg.f {
+      clip-path: polygon(50% 0%,
+          100% var(--cap),
+          100% calc(100% - var(--cap)),
+          50% 100%,
+          0% calc(100% - var(--cap)),
+          0% var(--cap));
     }
 
     /* コロン */
@@ -167,13 +192,12 @@
       opacity: .95;
     }
 
-
     .dot.top {
-      top: calc(35% - 6px);
+      top: calc(35% - (var(--dot-size, 14px) / 2));
     }
 
     .dot.bot {
-      top: calc(65% - 6px);
+      top: calc(65% - (var(--dot-size, 14px) / 2));
     }
 
     .controls {
@@ -241,8 +265,6 @@
       .colon {
         width: 16px;
       }
-
-
 
       .display {
         gap: 10px;
@@ -512,7 +534,7 @@
       const H = W * (148 / 84);
 
       const segT = Math.max(8, W * 0.17);
-      const segGp = Math.max(6, W * 0.12);
+      const segGp = Math.max(6, W * 0.11);
 
       document.documentElement.style.setProperty("--digit-w", `${W}px`);
       document.documentElement.style.setProperty("--digit-h", `${H}px`);
