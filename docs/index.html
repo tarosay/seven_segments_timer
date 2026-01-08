@@ -71,18 +71,31 @@
       --seg-off: rgba(255, 26, 26, 0.12);
     }
 
-/* 完了時に 00:00:00 を点滅させる */
+    /* 完了時に 00:00:00 を点滅させる */
     @keyframes blinkZero {
-      0%, 49% { opacity: 1; }
-      50%, 100% { opacity: 0; }
+
+      0%,
+      49% {
+        opacity: 1;
+      }
+
+      50%,
+      100% {
+        opacity: 0;
+      }
     }
+
     .blink {
       animation: blinkZero 0.8s steps(1, end) infinite;
     }
+
     @media (prefers-reduced-motion: reduce) {
-      .blink { animation: none; }
+      .blink {
+        animation: none;
+      }
     }
-.display {
+
+    .display {
       display: flex;
       align-items: center;
       gap: var(--ui-gap, 14px);
@@ -364,22 +377,174 @@
     endSound.preload = "auto";
     let audioPrimed = false;
 
+
+    // 警告音（index.htmlと同じフォルダに warn_sound.mp3 を置く）
+    // 残り5秒になったらループ再生し、0秒で停止して終了音へ
+    const warnSound = new Audio("warn_sound.mp3");
+    warnSound.preload = "auto";
+    let warnLooping = false;
+
+    // 何秒前から警告音を鳴らし始めるか（スクリプトで変更可能）
+    const WARN_START_SEC = 10;
+    let warnEverStarted = false;
+    let endPending = false;
+
+
+    function startWarnLoop() {
+      if (warnLooping) return;
+      warnLooping = true;
+      warnEverStarted = true;
+      try {
+        warnSound.pause();
+        warnSound.currentTime = 0;
+        warnSound.loop = true;
+      } catch { /* ignore */ }
+      const p = warnSound.play();
+      if (p && typeof p.catch === "function") p.catch(() => { });
+    }
+
+
+    function startWarnOnce() {
+      // WARN_START_SEC が 1 のようなケース用：ループせずに1回だけ鳴らす
+      if (warnEverStarted) return;
+      warnEverStarted = true;
+      warnLooping = false;
+      try {
+        warnSound.pause();
+        warnSound.currentTime = 0;
+        warnSound.loop = false;
+      } catch { /* ignore */ }
+      const p = warnSound.play();
+      if (p && typeof p.catch === "function") p.catch(() => { });
+    }
+
+    function stopWarnLoop() {
+      if (!warnLooping) return;
+      warnLooping = false;
+      try {
+        warnSound.pause();
+        warnSound.currentTime = 0;
+        warnSound.loop = false;
+      } catch { /* ignore */ }
+    }
+
+    // warnを停止して「止まった」ことをイベントで確認してから次へ進む（完了時用）
+
+    // warn_sound.mp3 を「頭から1回だけ」鳴らし切るのを待つ（0秒になった時の最後の1回用）
+    function playWarnOneShotAndWait() {
+      return new Promise((resolve) => {
+        if (WARN_START_SEC <= 0) { resolve(); return; }
+
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          try { warnSound.removeEventListener("ended", onEnded); } catch { }
+          try { warnSound.currentTime = 0; } catch { }
+          setTimeout(resolve, 0);
+        };
+        const onEnded = () => finish();
+
+        try {
+          warnSound.pause();
+          warnSound.currentTime = 0;
+          warnSound.loop = false;
+        } catch { /* ignore */ }
+
+        // ended が取れない場合に備えて duration でフォールバック
+        let waitMs = 1200;
+        try {
+          const d = warnSound.duration;
+          if (Number.isFinite(d) && d > 0) waitMs = Math.ceil(d * 1000) + 80;
+        } catch { /* ignore */ }
+
+        try { warnSound.addEventListener("ended", onEnded, { once: true }); } catch { /* ignore */ }
+
+        const p = warnSound.play();
+        if (p && typeof p.catch === "function") p.catch(() => finish());
+
+        setTimeout(finish, waitMs);
+      });
+    }
+
+    function stopWarnLoopAndWait() {
+      // 0到達時：warn は途中で切らない（pauseしない）。
+      // ループだけ解除して、currentTime が進まなくなる＝実再生が止まったことをポーリングで確認してから次へ進む。
+      return new Promise((resolve) => {
+        // 以後の再スタート抑止（tickは止めているが念のため）
+        warnLooping = false;
+        try { warnSound.loop = false; } catch { /* ignore */ }
+
+        let lastCt = null;
+        let stableCount = 0;
+        const EPS = 0.001;    // 1ms 以上進んだら「まだ鳴っている」
+        const NEED_STABLE = 20; // 20回連続（約600ms）止まっていれば「鳴りやんだ」とみなす
+
+        const poll = () => {
+          let ct = 0;
+          try { ct = warnSound.currentTime; } catch { /* ignore */ }
+
+          if (lastCt === null) {
+            lastCt = ct;
+            setTimeout(poll, 30);
+            return;
+          }
+
+          if (ct > lastCt + EPS) {
+            // まだ進んでいる＝鳴っている
+            lastCt = ct;
+            stableCount = 0;
+            setTimeout(poll, 30);
+            return;
+          }
+
+          // 進んでいない
+          lastCt = ct;
+          stableCount += 1;
+          if (stableCount >= NEED_STABLE) {
+            resolve();
+            return;
+          }
+          setTimeout(poll, 30);
+        };
+
+        poll();
+      });
+    }
+
+
     function primeAudioOnce() {
       if (audioPrimed) return;
       audioPrimed = true;
 
       // ユーザー操作直後なら再生が許可されやすい。短く再生→停止で“解錠”を試みる。
-      endSound.volume = 1.0;
-      endSound.loop = false;
-      const p = endSound.play();
-      if (p && typeof p.then === "function") {
-        p.then(() => {
-          endSound.pause();
-          endSound.currentTime = 0;
-        }).catch(() => {
-          // ミュート状態/設定/ブラウザ都合で失敗してもタイマー自体は動かす
-        });
-      }
+      // 重要: 本番で使う endSound / warnSound を直接 pause() すると、
+      //       直後に開始した再生を止めてしまう競合が起きるため、ここでは別インスタンスでプリムする。
+      try {
+        const tmpEnd = new Audio(endSound.src);
+        tmpEnd.volume = 1.0;
+        tmpEnd.loop = false;
+        const p = tmpEnd.play();
+        if (p && typeof p.then === "function") {
+          p.then(() => {
+            tmpEnd.pause();
+            tmpEnd.currentTime = 0;
+          }).catch(() => { });
+        }
+      } catch { /* ignore */ }
+
+      try {
+        const tmpWarn = new Audio(warnSound.src);
+        tmpWarn.volume = 1.0;
+        tmpWarn.loop = false;
+        const pw = tmpWarn.play();
+        if (pw && typeof pw.then === "function") {
+          pw.then(() => {
+            tmpWarn.pause();
+            tmpWarn.currentTime = 0;
+          }).catch(() => { });
+        }
+      } catch { /* ignore */ }
     }
 
     function startEndAlert() {
@@ -389,7 +554,7 @@
         endSound.loop = true; // 点滅中はループ再生
       } catch { /* ignore */ }
       const p = endSound.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
+      if (p && typeof p.catch === "function") p.catch(() => { });
     }
 
     function stopEndAlert() {
@@ -550,6 +715,8 @@
 
     function stop() {
       running = false;
+      endPending = false;
+      stopWarnLoop();
       if (tickId !== null) {
         clearInterval(tickId);
         tickId = null;
@@ -562,6 +729,15 @@
     function start() {
       setCompleted(false);
       if (remainingMs <= 0) {
+        // 新規開始（入力値から開始）：warn 状態も初期化
+        warnEverStarted = false;
+        warnLooping = false;
+        try {
+          warnSound.pause();
+          warnSound.currentTime = 0;
+          warnSound.loop = false;
+        } catch { /* ignore */ }
+
         remainingMs = parseInputToMs(inputEl.value);
       }
       if (remainingMs <= 0) {
@@ -574,6 +750,15 @@
       statusEl.textContent = "動作中";
       endAt = performance.now() + remainingMs;
 
+      // スタート直後に既に WARN_START_SEC 秒以内なら、ここで即 warn を開始（初回スタートで鳴らない問題対策）
+      const initDispSec = Math.ceil(remainingMs / 1000);
+      if (initDispSec <= WARN_START_SEC && initDispSec > 0) {
+        startWarnLoop();
+      } else {
+        stopWarnLoop();
+      }
+
+
       // 100ms程度で十分滑らか＆軽量
       tickId = setInterval(() => {
         const now = performance.now();
@@ -582,11 +767,48 @@
         if (remainingMs <= 0) {
           remainingMs = 0;
           render("00:00:00");
-          stop();
+
+          // ここは「停止」ではなく「完了」扱いにする（stop()はsetCompleted(false)してしまうため使わない）
+          if (endPending) return;
+          endPending = true;
+
+          running = false;
+          if (tickId !== null) {
+            clearInterval(tickId);
+            tickId = null;
+          }
+          startBtn.textContent = "スタート";
           statusEl.textContent = "完了";
-          setCompleted(true);
-          return;
+
+          // warnが確実に鳴りやんでから終了音へ
+          (async () => {
+            // 0到達時：warn は「途中で切らない」。
+            // ループだけ解除して、今鳴っている1回分が自然終了（ended）したのを確認してから end を鳴らす。
+            await stopWarnLoopAndWait();
+            setCompleted(true); // ここで end_sound.mp3 が鳴る
+          })(); return;
         }
+        // 残りWARN_START_SEC秒になったら警告音をループ再生（途中でリセットしない＝ぶつ切れ防止）
+        const dispSec = Math.ceil(remainingMs / 1000);
+
+        // warn を「ループさせるのは 1 まで」：
+        //  - WARN_START_SEC .. 2 の間は loop 再生
+        //  - 1 になったら loop を解除（pauseしない）
+        //  - 0 になったら warn の停止（currentTime停止）を確認してから end を鳴らす
+        if (dispSec <= WARN_START_SEC && dispSec > 1) {
+          startWarnLoop();
+        } else if (dispSec === 1 && dispSec <= WARN_START_SEC) {
+          // 最後の1秒：新規開始の場合は1回だけ、既に鳴っている場合はループ解除
+          if (!warnEverStarted) {
+            startWarnOnce();
+          } else {
+            try { warnSound.loop = false; } catch { /* ignore */ }
+            warnLooping = false;
+          }
+        } else {
+          stopWarnLoop();
+        }
+
         render(formatHMS(remainingMs));
       }, 100);
     }
@@ -596,6 +818,15 @@
       render(formatHMS(remainingMs));
       setCompleted(false);
       statusEl.textContent = "停止中";
+
+      // 新規設定時は warn の状態も初期化
+      warnEverStarted = false;
+      warnLooping = false;
+      try {
+        warnSound.pause();
+        warnSound.currentTime = 0;
+        warnSound.loop = false;
+      } catch { /* ignore */ }
     }
 
     // 初期化
@@ -615,12 +846,15 @@
       primeAudioOnce();
 
       if (!running) {
-        // 入力値から開始したいので、ここで再読み込み
-        remainingMs = parseInputToMs(inputEl.value);
-        render(formatHMS(remainingMs)); // スタート前に整形表示（例 0:1:0 → 00:01:00）
+        // 停止中は「続き」から再開する（remainingMs を上書きしない）
+        // ただし remainingMs が 0 以下（未設定/完了）なら入力値から開始
+        if (remainingMs <= 0) {
+          remainingMs = parseInputToMs(inputEl.value);
+        }
+        render(formatHMS(remainingMs)); // 表示を整形
         start();
       } else {
-        // 一時停止
+        // 一時停止（remainingMs は tick 側で更新済み）
         stop();
         render(formatHMS(remainingMs));
       }
