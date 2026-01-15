@@ -707,6 +707,29 @@
       return ((h * 3600 + m * 60 + s) * 1000);
     }
 
+    function secondsToHMSInput(sec) {
+      sec = Math.max(0, Math.floor(sec));
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      // 入力フォーマットは既存の parseInputToMs() が受ける "h:m:s"
+      return `${h}:${m}:${s}`;
+    }
+
+    function applyQueryTimeToInput() {
+      const sp = new URLSearchParams(window.location.search);
+      if (!sp.has("time")) return;
+
+      const raw = (sp.get("time") ?? "").trim();
+      if (!raw) return;
+
+      // time=600 のような「秒」を想定
+      const sec = Number(raw);
+      if (!Number.isFinite(sec) || sec < 0) return;
+
+      inputEl.value = secondsToHMSInput(sec);
+    }
+
     // タイマー状態
     let running = false;
     let remainingMs = 0;
@@ -832,8 +855,8 @@
     // 初期化
     buildDisplay();
     fitToWidth();
+    applyQueryTimeToInput();
     applyInputToDisplay();
-
 
     // 入力変更で即表示（動作中は誤動作防止で停止）
     inputEl.addEventListener("input", () => {
