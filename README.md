@@ -11,6 +11,21 @@
 
 ▶ https://tarosay.github.io/seven_segments_timer/
 
+## PWA（ホーム画面に追加 / オフライン対応）
+
+このタイマーは **PWA 対応**しています。
+
+- **インストール（PC）**：Chrome / Edge などでページを開き、アドレスバー付近の「インストール」から追加できます。
+- **インストール（iOS）**：Safari で開き、共有メニューから **「ホーム画面に追加」**。
+- **オフライン**：一度表示した後は、オフラインでも起動できます（Service Worker のキャッシュ）。
+
+### 技術メモ
+
+- `index.html` から `manifest.webmanifest` を参照し、Service Worker を登録しています。
+- `service-worker.js` は `index.html` / `manifest.webmanifest` / アイコン類を **pre-cache** します。
+- `end_sound.mp3` / `warn_sound.mp3` もオフラインで鳴らしたい場合は、`service-worker.js` の `OPTIONAL_ASSETS` に追加してください。
+- キャッシュ更新を確実に反映したい場合は、`service-worker.js` の `CACHE_NAME` を更新（例：`...-v2`）してください。
+
 ## 使い方
 
 ### 1) すぐ試す
@@ -43,6 +58,7 @@ cd seven_segments_timer
 ```
 
 > ※ 追加の依存ライブラリはありません（素の HTML/CSS/JavaScript）。
+> ※ **PWA（Service Worker）は** `file://` 直開きでは有効にならないため、必要ならローカルサーバ（例：`python -m http.server`）で開いてください。
 
 ## 仕様メモ
 
@@ -53,6 +69,9 @@ cd seven_segments_timer
 ## ファイル構成
 
 - `index.html` : 本体（UI + ロジック）
+- `manifest.webmanifest` : PWA マニフェスト
+- `service-worker.js` : PWA（オフライン用キャッシュ）
+- `icons/` : PWA アイコン
 - `LICENSE` : MIT
 
 ## ライセンス
