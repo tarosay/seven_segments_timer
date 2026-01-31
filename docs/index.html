@@ -5,7 +5,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>7セグ カウントダウンタイマー</title>
-  
+
   <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#ffffff" />
@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="7セグタイマー" />
-<style>
+  <style>
     :root {
       --seg-color: #ff1a1a;
       --seg-glow: rgba(255, 26, 26, 0.35);
@@ -389,7 +389,7 @@
 
     // 警告音（index.htmlと同じフォルダに warn_sound.mp3 を置く）
     // 残り5秒になったらループ再生し、0秒で停止して終了音へ
-    const warnSound = new Audio("warn_sound.mp3");
+    const warnSound = new Audio("10sec_Before1.wav");
     warnSound.preload = "auto";
     let warnLooping = false;
 
@@ -398,6 +398,23 @@
     let warnEverStarted = false;
     let endPending = false;
 
+    // 1分前の通知音
+    const oneBeforeSound = new Audio("one_before.wav");
+    oneBeforeSound.preload = "auto";
+    const ONE_BEFORE_SEC = 60;
+    let oneBeforePlayed = false;
+
+    function playOneBeforeOnce() {
+      if (oneBeforePlayed) return;
+      oneBeforePlayed = true;
+      try {
+        oneBeforeSound.pause();
+        oneBeforeSound.currentTime = 0;
+        oneBeforeSound.loop = false;
+      } catch { /* ignore */ }
+      const p = oneBeforeSound.play();
+      if (p && typeof p.catch === "function") p.catch(() => { });
+    }
 
     function startWarnLoop() {
       if (warnLooping) return;
@@ -529,6 +546,20 @@
       // ユーザー操作直後なら再生が許可されやすい。短く再生→停止で“解錠”を試みる。
       // 重要: 本番で使う endSound / warnSound を直接 pause() すると、
       //       直後に開始した再生を止めてしまう競合が起きるため、ここでは別インスタンスでプリムする。
+
+      try {
+        const tmpOne = new Audio(oneBeforeSound.src);
+        tmpOne.volume = 1.0;
+        tmpOne.loop = false;
+        const po = tmpOne.play();
+        if (po && typeof po.then === "function") {
+          po.then(() => {
+            tmpOne.pause();
+            tmpOne.currentTime = 0;
+          }).catch(() => { });
+        }
+      } catch { /* ignore */ }
+
       try {
         const tmpEnd = new Audio(endSound.src);
         tmpEnd.volume = 1.0;
@@ -658,10 +689,10 @@
       displayShellEl.classList.toggle("completed", isCompleted);
       if (isCompleted) {
         startColorBlink();
-        startEndAlert();
+        //startEndAlert();
       } else {
         stopColorBlink();
-        stopEndAlert();
+        //stopEndAlert();
       }
     }
 
@@ -764,6 +795,8 @@
         // 新規開始（入力値から開始）：warn 状態も初期化
         warnEverStarted = false;
         warnLooping = false;
+        // ★ここに追加（1分前サウンドの「鳴らしたフラグ」も初期化）
+        oneBeforePlayed = false;
         try {
           warnSound.pause();
           warnSound.currentTime = 0;
@@ -823,6 +856,9 @@
         // 残りWARN_START_SEC秒になったら警告音をループ再生（途中でリセットしない＝ぶつ切れ防止）
         const dispSec = Math.ceil(remainingMs / 1000);
 
+        if (dispSec === ONE_BEFORE_SEC) {
+          playOneBeforeOnce();
+        }
         // warn を「ループさせるのは 1 まで」：
         //  - WARN_START_SEC .. 2 の間は loop 再生
         //  - 1 になったら loop を解除（pauseしない）
@@ -854,6 +890,8 @@
       // 新規設定時は warn の状態も初期化
       warnEverStarted = false;
       warnLooping = false;
+      oneBeforePlayed = false;
+
       try {
         warnSound.pause();
         warnSound.currentTime = 0;
@@ -930,7 +968,7 @@
       render(formatHMS(remainingMs));
     });
 
-  
+
 
     // PWA: Service Worker登録
     if ("serviceWorker" in navigator) {
@@ -938,7 +976,7 @@
         navigator.serviceWorker.register("./service-worker.js", { scope: "./" }).catch(() => { });
       });
     }
-</script>
+  </script>
 </body>
 
 </html>
